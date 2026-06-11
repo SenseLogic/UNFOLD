@@ -22,14 +22,18 @@
 
 import core.stdc.stdlib : exit;
 import std.conv : to;
-import std.file : dirEntries, exists, isFile, mkdirRecurse, readText, rename, write, SpanMode;
+import std.file : copy, dirEntries, exists, isFile, mkdirRecurse, readText, rename, write, SpanMode;
 import std.path : absolutePath;
 import std.stdio : writeln;
-import std.string : endsWith, indexOf, join, lastIndexOf, replace, split, startsWith, strip, stripRight;
+import std.string : endsWith, indexOf, join, lastIndexOf, replace, split, startsWith, strip, stripRight, toLower, toUpper;
+import std.uni : isAlpha;
 
 // -- VARIABLES
 
 bool
+    CopyOptionIsEnabled,
+    MoveOptionIsEnabled,
+    OverwriteOptionIsEnabled,
     PreviewOptionIsEnabled;
 
 // -- FUNCTIONS
@@ -63,6 +67,176 @@ void Abort(
     PrintError( exception.msg );
 
     exit( -1 );
+}
+
+// ~~
+
+string GetLowerCaseText(
+    string text
+    )
+{
+    return text.toLower();
+}
+
+// ~~
+
+string GetUpperCaseText(
+    string text
+    )
+{
+    return text.toUpper();
+}
+
+// ~~
+
+string GetTitleCaseText(
+    string text
+    )
+{
+    dchar
+        prior_character;
+    dstring
+        unicode_text,
+        title_case_text;
+
+    unicode_text = text.to!dstring();
+    prior_character = 0;
+
+    foreach ( dchar character; unicode_text )
+    {
+        if ( character.isAlpha() )
+        {
+            if ( prior_character == 0
+                 || prior_character == ' ' )
+            {
+                title_case_text ~= character.toUpper();
+            }
+            else
+            {
+                title_case_text ~= character.toLower();
+            }
+        }
+        else
+        {
+            title_case_text ~= character;
+        }
+
+        prior_character = character;
+    }
+
+
+    return title_case_text.to!string();
+}
+
+// ~~
+
+string AddPrefix(
+    string text,
+    string added_prefix
+    )
+{
+    return added_prefix ~ text;
+}
+
+// ~~
+
+string AddSuffix(
+    string text,
+    string added_suffix
+    )
+{
+    return text ~ added_suffix;
+}
+
+// ~~
+
+string RemovePrefix(
+    string text,
+    string removed_prefix
+    )
+{
+    if ( text.startsWith( removed_prefix ) )
+    {
+        return text[ removed_prefix.length .. $ ];
+    }
+    else
+    {
+        return text;
+    }
+}
+
+// ~~
+
+string RemoveSuffix(
+    string text,
+    string removed_suffix
+    )
+{
+    if ( text.endsWith( removed_suffix ) )
+    {
+        return text[ 0 .. $ - removed_suffix.length ];
+    }
+    else
+    {
+        return text;
+    }
+}
+
+// ~~
+
+string RemoveText(
+    string text,
+    string removed_text
+    )
+{
+    return text.replace( removed_text, "" );
+}
+
+// ~~
+
+string ReplacePrefix(
+    string text,
+    string old_prefix,
+    string new_prefix
+    )
+{
+    if ( text.startsWith( old_prefix ) )
+    {
+        return new_prefix ~ text[ old_prefix.length .. $ ];
+    }
+    else
+    {
+        return text;
+    }
+}
+
+// ~~
+
+string ReplaceSuffix(
+    string text,
+    string old_suffix,
+    string new_suffix
+    )
+{
+    if ( text.endsWith( old_suffix ) )
+    {
+        return text[ 0 .. $ - old_suffix.length ] ~ new_suffix;
+    }
+    else
+    {
+        return text;
+    }
+}
+
+// ~~
+
+string ReplaceText(
+    string text,
+    string old_text,
+    string new_text
+    )
+{
+    return text.replace( old_text, new_text );
 }
 
 // ~~
@@ -214,6 +388,29 @@ void CreateFolder(
 
 // ~~
 
+void CopyFile(
+    string old_file_path,
+    string new_file_path
+    )
+{
+    writeln( "Copying file :\n  ", old_file_path, "\n  ", new_file_path );
+
+    try
+    {
+        if ( !PreviewOptionIsEnabled )
+        {
+            CreateFolder( new_file_path.GetFolderPath() );
+            old_file_path.copy( new_file_path );
+        }
+    }
+    catch ( Exception exception )
+    {
+        Abort( "Can't copy file : " ~ old_file_path ~ " => " ~ new_file_path, exception );
+    }
+}
+
+// ~~
+
 void MoveFile(
     string old_file_path,
     string new_file_path
@@ -356,7 +553,7 @@ string[ string ] GetPropertyValueByNameMap(
     string[ string ]
         property_value_by_name_map;
 
-    property_value_by_name_map[ "P" ] = relative_file_path;
+    property_value_by_name_map[ "F" ] = relative_file_path;
 
     relative_folder_path = relative_file_path.GetFolderPath();
 
@@ -365,14 +562,14 @@ string[ string ] GetPropertyValueByNameMap(
         relative_folder_name_array = relative_folder_path[ 0 .. $ - 1 ].split( '/' );
     }
 
-    property_value_by_name_map[ "F" ] = relative_folder_path;
+    property_value_by_name_map[ "D" ] = relative_folder_path;
 
     foreach ( relative_folder_name_index, relative_folder_name; relative_folder_name_array )
     {
         folder_number = relative_folder_name_array.length - relative_folder_name_index;
 
-        property_value_by_name_map[ "F" ~ folder_number.to!string() ] = relative_folder_name;
-        property_value_by_name_map[ "F" ~ folder_number.to!string() ~ "-" ]
+        property_value_by_name_map[ "D" ~ folder_number.to!string() ] = relative_folder_name;
+        property_value_by_name_map[ "D" ~ folder_number.to!string() ~ "^" ]
             = relative_folder_name_array[ 0 .. relative_folder_name_index + 1 ].join( '/' );
     }
 
@@ -381,6 +578,115 @@ string[ string ] GetPropertyValueByNameMap(
     property_value_by_name_map[ "E" ] = relative_file_path.GetFileExtension();
 
     return property_value_by_name_map;
+}
+
+// ~~
+
+string GetFilteredValue(
+    string value,
+    string filter
+    )
+{
+    long
+        filter_argument_count;
+    string
+        filter_name;
+    string[]
+        filter_argument_array,
+        filter_part_array;
+
+    filter_part_array = filter.split( ' ' );
+
+    foreach ( ref filter_part; filter_part_array )
+    {
+        filter_part = filter_part.replace( '¨', ' ' );
+    }
+
+    filter_name = filter_part_array[ 0 ];
+    filter_argument_array = filter_part_array[ 1 .. $ ];
+    filter_argument_count = filter_argument_array.length;
+
+    if ( filter_name == "lower_case"
+         && filter_argument_count == 0 )
+    {
+        return value.GetLowerCaseText();
+    }
+    else if ( filter_name == "upper_case"
+         && filter_argument_count == 0 )
+    {
+        return value.GetUpperCaseText();
+    }
+    else if ( filter_name == "title_case"
+         && filter_argument_count == 0 )
+    {
+        return value.GetTitleCaseText();
+    }
+    else if ( filter_name == "add_prefix"
+              && filter_argument_count == 1 )
+    {
+        return value.AddPrefix( filter_argument_array[ 0 ] );
+    }
+    else if ( filter_name == "add_suffix"
+              && filter_argument_count == 1 )
+    {
+        return value.AddSuffix( filter_argument_array[ 0 ] );
+    }
+    else if ( filter_name == "remove_prefix"
+              && filter_argument_count == 1 )
+    {
+        return value.RemovePrefix( filter_argument_array[ 0 ] );
+    }
+    else if ( filter_name == "remove_suffix"
+              && filter_argument_count == 1 )
+    {
+        return value.RemoveSuffix( filter_argument_array[ 0 ] );
+    }
+    else if ( filter_name == "remove_text"
+              && filter_argument_count == 1 )
+    {
+        return value.RemoveText( filter_argument_array[ 0 ] );
+    }
+    else if ( filter_name == "replace_prefix"
+              && filter_argument_count == 2 )
+    {
+        return value.ReplacePrefix( filter_argument_array[ 0 ], filter_argument_array[ 1 ] );
+    }
+    else if ( filter_name == "replace_suffix"
+              && filter_argument_count == 2 )
+    {
+        return value.ReplaceSuffix( filter_argument_array[ 0 ], filter_argument_array[ 1 ] );
+    }
+    else if ( filter_name == "replace_text"
+              && filter_argument_count == 2 )
+    {
+        return value.ReplaceText( filter_argument_array[ 0 ], filter_argument_array[ 1 ] );
+    }
+    else
+    {
+        Abort( "Invalid property filter : " ~ filter );
+
+        return value;
+    }
+}
+
+// ~~
+
+string GetFilteredValue(
+    string value,
+    string[] filter_array
+    )
+{
+    string
+        filtered_value;
+
+    filtered_value = value;
+
+    foreach ( filter; filter_array )
+    {
+        filtered_value = filtered_value.GetFilteredValue( filter );
+    }
+
+    return filtered_value;
 }
 
 // ~~
@@ -399,7 +705,7 @@ string GetOutputRelativeFilePath(
         property_value;
     string[]
         part_array,
-        property_filter_array;
+        property_expression_part_array;
     string[ string ]
         property_value_by_name_map;
 
@@ -416,16 +722,20 @@ string GetOutputRelativeFilePath(
             if ( closing_brace_character_index >= 0 )
             {
                 property_expression = part[ 0 .. closing_brace_character_index ];
-                property_filter_array = property_expression.split( '|' );
-                property_name = property_filter_array[ 0 ];
+                property_expression_part_array = property_expression.split( '|' );
+                property_name = property_expression_part_array[ 0 ];
                 property_value = property_name in property_value_by_name_map;
 
                 if ( property_value !is null )
                 {
-                    part_array[ part_index ] = *property_value ~ part[ closing_brace_character_index + 1 .. $ ];
+                    part_array[ part_index ]
+                        = ( *property_value ).GetFilteredValue( property_expression_part_array[ 1 .. $ ] )
+                          ~ part[ closing_brace_character_index + 1 .. $ ];
                 }
-                else if ( property_name.startsWith( 'F' ) )
+                else if ( property_name.startsWith( 'D' ) )
                 {
+                    writeln( output_relative_file_path_template );
+                    writeln( property_name );
                     return "";
                 }
                 else
@@ -496,7 +806,7 @@ void ProcessFiles(
             {
                 output_relative_file_path_exists_map[ output_relative_file_path ] = true;
             }
-            else
+            else if ( !OverwriteOptionIsEnabled )
             {
                 Abort( "Output file will already exist : " ~ output_relative_file_path );
             }
@@ -514,9 +824,17 @@ void ProcessFiles(
 
             if ( output_file_path != input_file_path )
             {
-                if ( !output_file_path.exists() )
+                if ( OverwriteOptionIsEnabled
+                     || !output_file_path.exists() )
                 {
-                    MoveFile( input_file_path, output_file_path );
+                    if ( CopyOptionIsEnabled )
+                    {
+                        CopyFile( input_file_path, output_file_path );
+                    }
+                    else if ( MoveOptionIsEnabled )
+                    {
+                        MoveFile( input_file_path, output_file_path );
+                    }
                 }
                 else
                 {
@@ -538,6 +856,9 @@ void main(
 
     argument_array = argument_array[ 1 .. $ ];
 
+    CopyOptionIsEnabled = false;
+    MoveOptionIsEnabled = false;
+    OverwriteOptionIsEnabled = false;
     PreviewOptionIsEnabled = false;
 
     while ( argument_array.length >= 1
@@ -546,7 +867,19 @@ void main(
         option = argument_array[ 0 ];
         argument_array = argument_array[ 1 .. $ ];
 
-        if ( option == "--preview" )
+        if ( option == "--copy" )
+        {
+            CopyOptionIsEnabled = true;
+        }
+        else if ( option == "--move" )
+        {
+            MoveOptionIsEnabled = true;
+        }
+        else if ( option == "--overwrite" )
+        {
+            OverwriteOptionIsEnabled = true;
+        }
+        else if ( option == "--preview" )
         {
             PreviewOptionIsEnabled = true;
         }
@@ -557,6 +890,7 @@ void main(
     }
 
     if ( argument_array.length == 4
+         && ( CopyOptionIsEnabled || MoveOptionIsEnabled )
          && argument_array[ 0 ].GetLogicalPath().IsFolderPath()
          && argument_array[ 2 ].GetLogicalPath().IsFolderPath() )
     {
@@ -570,7 +904,7 @@ void main(
     else
     {
         writeln( "Usage :" );
-        writeln( "    unfold <input folder path> <input file name filter> <output folder path> <output relative file path template>" );
+        writeln( "    unfold [options] <input folder path> <input file name filter> <output folder path> <output relative file path template>" );
 
         PrintError( "Invalid arguments : " ~ argument_array.to!string() );
     }

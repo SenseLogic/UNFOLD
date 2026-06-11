@@ -17,18 +17,55 @@ dmd -m64 unfold.d
 ## Command line
 
 ```
-unfold <input folder path> <input file name filter> <output folder path> <output file name template>
+unfold [options] <input folder path> <input file name filter> <output folder path> <output file name template>
 ```
 
-### Example
+## Options
+
+```
+--copy
+--move
+--overwrite
+--preview
+```
+
+## Examples
 
 ```bash
-unfold INPUT_FOLDER/ "*.*" OUTPUT_FOLDER/ "{F2-}/{F1}_{S}{E}"
+unfold --copy --overwrite INPUT_FOLDER/ "*.*" OUTPUT_FOLDER/ "{D2^}/{D1}_{S|remove_suffix _code|remove_suffix _screen}{E}"
+```
+
+## Properties
+
+```
+F : file path
+D : directory path
+Dn : nth upper directory name
+Dn- : nth upper directory path
+N : file name
+S : file stem
+E : file extension
+```
+
+## Filters
+
+```
+upper_case
+lower_case
+title_case
+add_prefix added¨prefix
+add_suffix added¨suffix
+remove_prefix removed¨prefix
+remove_suffix removed¨suffix
+remove_text removed¨text
+replace_prefix old¨text new¨text
+replace_suffix old¨text new¨text
+replace_text old¨text new¨text
 ```
 
 ## Version
 
-0.1
+0.2
 
 ## Author
 
