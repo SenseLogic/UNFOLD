@@ -17,7 +17,7 @@ dmd -m64 unfold.d
 ## Command line
 
 ```
-unfold [options] <input folder path> <input file name filter> <output folder path> <output file name template>
+unfold [options] <input folder path> <input file path filter> <output folder path> <output file name template>
 ```
 
 ## Options
@@ -32,7 +32,7 @@ unfold [options] <input folder path> <input file name filter> <output folder pat
 ## Examples
 
 ```bash
-unfold --copy --overwrite INPUT_FOLDER/ "*.*" OUTPUT_FOLDER/ "{D2^}/{D1}_{S|remove_suffix _code|remove_suffix _screen}{E}"
+unfold --copy --overwrite INPUT_FOLDER/ "DESKTOP//*.*|MOBILE//*.*" OUTPUT_FOLDER/ "{D1}{S|remove_suffix _code|remove_suffix _screen}_{D!|lower_case}{E}"
 ```
 
 ## Properties
@@ -40,8 +40,11 @@ unfold --copy --overwrite INPUT_FOLDER/ "*.*" OUTPUT_FOLDER/ "{D2^}/{D1}_{S|remo
 ```
 F : file path
 D : directory path
-Dn : nth upper directory name
-Dn- : nth upper directory path
+D~ : directory path without ending /
+D! : directory name
+Dn : nth upper directory path
+Dn~ : nth upper directory path without ending /
+Dn! : nth upper directory name
 N : file name
 S : file stem
 E : file extension
@@ -65,7 +68,7 @@ replace_text old¨text new¨text
 
 ## Version
 
-0.2
+0.3
 
 ## Author
 

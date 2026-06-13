@@ -23,7 +23,7 @@
 import core.stdc.stdlib : exit;
 import std.conv : to;
 import std.file : copy, dirEntries, exists, isFile, mkdirRecurse, readText, rename, write, SpanMode;
-import std.path : absolutePath;
+import std.path : absolutePath, globMatch;
 import std.stdio : writeln;
 import std.string : endsWith, indexOf, join, lastIndexOf, replace, split, startsWith, strip, stripRight, toLower, toUpper;
 import std.uni : isAlpha;
@@ -67,6 +67,24 @@ void Abort(
     PrintError( exception.msg );
 
     exit( -1 );
+}
+
+// ~~
+
+bool IsNumberText(
+    string text
+    )
+{
+    foreach ( character; text )
+    {
+        if ( character < '0'
+             || character > '9' )
+        {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 // ~~
@@ -264,6 +282,32 @@ string GetLogicalPath(
 
 // ~~
 
+string MakeFolderPath(
+    string folder_path
+    )
+{
+    if ( folder_path == ""
+         || folder_path.endsWith( '/' ) )
+    {
+        return folder_path;
+    }
+    else
+    {
+        return folder_path ~ '/';
+    }
+}
+
+// ~~
+
+string MakeFolderPath(
+    string[] folder_name_array
+    )
+{
+    return folder_name_array.join( '/' ).MakeFolderPath();
+}
+
+// ~~
+
 string GetFolderPath(
     string file_path
     )
@@ -361,6 +405,183 @@ string GetFileExtension(
     {
         return "";
     }
+}
+
+// ~~
+
+bool MatchesFolderPathFilter(
+    string[] folder_part_array,
+    string[] filter_part_array,
+    size_t folder_part_index,
+    size_t filter_part_index
+    )
+{
+    if ( filter_part_index >= filter_part_array.length )
+    {
+        return folder_part_index >= folder_part_array.length;
+    }
+    else if ( filter_part_array[ filter_part_index ] == "//" )
+    {
+        foreach ( next_folder_index; folder_part_index .. folder_part_array.length + 1 )
+        {
+            if ( MatchesFolderPathFilter(
+                     folder_part_array,
+                     filter_part_array,
+                     next_folder_index,
+                     filter_part_index + 1 ) )
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+    else if ( folder_part_index >= folder_part_array.length )
+    {
+        return false;
+    }
+    else if ( folder_part_array[ folder_part_index ].globMatch(
+                  filter_part_array[ filter_part_index ] ) )
+    {
+        return MatchesFolderPathFilter(
+            folder_part_array,
+            filter_part_array,
+            folder_part_index + 1,
+            filter_part_index + 1 );
+    }
+    else
+    {
+        return false;
+    }
+}
+
+// ~~
+
+bool MatchesFolderPathFilter(
+    string folder_path,
+    string folder_path_filter
+    )
+{
+    long
+        character_index,
+        next_character_index;
+    string[]
+        folder_part_array,
+        filter_part_array;
+
+    folder_part_array = folder_path.split( '/' );
+
+    if ( folder_part_array.length > 0
+         && folder_part_array[ 0 ] == "" )
+    {
+        folder_part_array = folder_part_array[ 1 .. $ ];
+    }
+
+    if ( folder_part_array.length > 0
+         && folder_part_array[ $ - 1 ] == "" )
+    {
+        folder_part_array = folder_part_array[ 0 .. $ - 1 ];
+    }
+
+    if ( folder_path_filter.startsWith( '/' ) )
+    {
+        folder_path_filter = folder_path_filter[ 1 .. $ ];
+    }
+    else
+    {
+        folder_path_filter = "//" ~ folder_path_filter;
+    }
+
+    character_index = 0;
+
+    while ( character_index < folder_path_filter.length )
+    {
+        if ( character_index + 1 < folder_path_filter.length
+             && folder_path_filter[ character_index ] == '/'
+             && folder_path_filter[ character_index + 1 ] == '/' )
+        {
+            filter_part_array ~= "//";
+            character_index += 2;
+        }
+        else
+        {
+            next_character_index = character_index;
+
+            while ( next_character_index < folder_path_filter.length
+                    && folder_path_filter[ next_character_index ] != '/' )
+            {
+                ++next_character_index;
+            }
+
+            filter_part_array
+                ~= folder_path_filter[ character_index .. next_character_index ];
+
+            if ( next_character_index < folder_path_filter.length )
+            {
+                ++next_character_index;
+            }
+
+            character_index = next_character_index;
+        }
+    }
+
+    if ( filter_part_array.length > 0
+         && filter_part_array[ $ - 1 ] == "" )
+    {
+        filter_part_array = filter_part_array[ 0 .. $ - 1 ];
+    }
+
+    return MatchesFolderPathFilter( folder_part_array, filter_part_array, 0, 0 );
+}
+
+// ~~
+
+bool MatchesFilePathFilter(
+    string file_path,
+    string file_path_filter
+    )
+{
+    string
+        file_name,
+        file_name_filter,
+        folder_path,
+        folder_path_filter;
+
+    folder_path = file_path.GetFolderPath();
+    file_name = file_path.GetFileName();
+
+    folder_path_filter = file_path_filter.GetFolderPath();
+    file_name_filter = file_path_filter.GetFileName();
+
+    if ( folder_path_filter != "" )
+    {
+        if ( !MatchesFolderPathFilter( folder_path, folder_path_filter ) )
+        {
+            return false;
+        }
+    }
+
+    return
+        file_name_filter == ""
+        || file_name.globMatch( file_name_filter );
+}
+
+// ~~
+
+bool MatchesFilePathFilterArray(
+    string file_path,
+    string[] file_path_filter_array
+    )
+{
+    foreach ( file_path_filter; file_path_filter_array )
+    {
+        if ( MatchesFilePathFilter( file_path, file_path_filter ) )
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 // ~~
@@ -512,25 +733,34 @@ bool[ string ] GetRelativeFilePathExistsMap(
 
 string[] GetRelativeFilePathArray(
     string folder_path,
-    string file_name_filter
+    string file_path_filter
     )
 {
     string
-        file_path;
+        file_path,
+        relative_file_path;
     string[]
+        file_path_filter_array,
         relative_file_path_array;
 
     writeln( "Filtering folder : ", folder_path );
 
-    foreach ( folder_entry; folder_path.dirEntries( file_name_filter, SpanMode.depth ) )
+    file_path_filter_array = file_path_filter.split( '|' );
+
+    foreach ( folder_entry; folder_path.dirEntries( SpanMode.depth ) )
     {
         if ( folder_entry.isFile )
         {
             file_path = folder_entry.name.GetLogicalPath();
 
-            if ( file_path.startsWith( folder_path ) )
+            if ( file_path.startsWith( folder_path ))
             {
-                relative_file_path_array ~= file_path[ folder_path.length .. $ ];
+                relative_file_path = file_path[ folder_path.length .. $ ];
+
+                if ( relative_file_path.MatchesFilePathFilterArray( file_path_filter_array ) )
+                {
+                    relative_file_path_array ~= relative_file_path;
+                }
             }
         }
     }
@@ -545,9 +775,12 @@ string[ string ] GetPropertyValueByNameMap(
     )
 {
     long
-        folder_number;
+        upper_folder_number,
+        relative_folder_name_count;
     string
-        relative_folder_path;
+        relative_folder_name,
+        relative_folder_path,
+        upper_folder_number_text;
     string[]
         relative_folder_name_array;
     string[ string ]
@@ -561,16 +794,28 @@ string[ string ] GetPropertyValueByNameMap(
     {
         relative_folder_name_array = relative_folder_path[ 0 .. $ - 1 ].split( '/' );
     }
-
-    property_value_by_name_map[ "D" ] = relative_folder_path;
-
-    foreach ( relative_folder_name_index, relative_folder_name; relative_folder_name_array )
+    else
     {
-        folder_number = relative_folder_name_array.length - relative_folder_name_index;
+        relative_folder_name_array = relative_folder_path.split( '/' );
+    }
 
-        property_value_by_name_map[ "D" ~ folder_number.to!string() ] = relative_folder_name;
-        property_value_by_name_map[ "D" ~ folder_number.to!string() ~ "^" ]
-            = relative_folder_name_array[ 0 .. relative_folder_name_index + 1 ].join( '/' );
+    for ( upper_folder_number = 0;
+          upper_folder_number < relative_folder_name_array.length;
+          ++upper_folder_number )
+    {
+        relative_folder_name_count = relative_folder_name_array.length - upper_folder_number;
+
+        if ( upper_folder_number > 0 )
+        {
+            upper_folder_number_text = upper_folder_number.to!string();
+        }
+
+        relative_folder_name = relative_folder_name_array[ relative_folder_name_count - 1 ];
+        relative_folder_path = relative_folder_name_array[ 0 .. relative_folder_name_count ].MakeFolderPath();
+
+        property_value_by_name_map[ "D" ~ upper_folder_number_text ] = relative_folder_path;
+        property_value_by_name_map[ "D" ~ upper_folder_number_text ~ "~" ] = relative_folder_path.ReplaceSuffix( "/", "" );
+        property_value_by_name_map[ "D" ~ upper_folder_number_text ~ "!" ] = relative_folder_name;
     }
 
     property_value_by_name_map[ "N" ] = relative_file_path.GetFileName();
@@ -732,11 +977,10 @@ string GetOutputRelativeFilePath(
                         = ( *property_value ).GetFilteredValue( property_expression_part_array[ 1 .. $ ] )
                           ~ part[ closing_brace_character_index + 1 .. $ ];
                 }
-                else if ( property_name.startsWith( 'D' ) )
+                else if ( property_name.startsWith( 'D' )
+                          && property_name[ 1 .. $ ].IsNumberText() )
                 {
-                    writeln( output_relative_file_path_template );
-                    writeln( property_name );
-                    return "";
+                    part_array[ part_index ] = part[ closing_brace_character_index + 1 .. $ ];
                 }
                 else
                 {
@@ -757,7 +1001,7 @@ string GetOutputRelativeFilePath(
 
 void ProcessFiles(
     string input_folder_path,
-    string input_file_name_filter,
+    string input_file_path_filter,
     string output_folder_path,
     string output_relative_file_path_template
     )
@@ -783,7 +1027,7 @@ void ProcessFiles(
 
     output_relative_file_path_exists_map = GetRelativeFilePathExistsMap( output_folder_path );
 
-    input_relative_file_path_array = GetRelativeFilePathArray( input_folder_path, input_file_name_filter );
+    input_relative_file_path_array = GetRelativeFilePathArray( input_folder_path, input_file_path_filter );
 
     foreach ( input_relative_file_path; input_relative_file_path_array )
     {
@@ -904,7 +1148,7 @@ void main(
     else
     {
         writeln( "Usage :" );
-        writeln( "    unfold [options] <input folder path> <input file name filter> <output folder path> <output relative file path template>" );
+        writeln( "    unfold [options] <input folder path> <input file path filter> <output folder path> <output relative file path template>" );
 
         PrintError( "Invalid arguments : " ~ argument_array.to!string() );
     }
