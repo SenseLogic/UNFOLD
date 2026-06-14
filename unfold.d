@@ -26,6 +26,7 @@ import std.file : copy, dirEntries, exists, isFile, mkdirRecurse, readText, rena
 import std.path : absolutePath, globMatch;
 import std.stdio : writeln;
 import std.string : endsWith, indexOf, join, lastIndexOf, replace, split, startsWith, strip, stripRight, toLower, toUpper;
+import std.typecons : tuple, Tuple;
 import std.uni : isAlpha;
 
 // -- VARIABLES
@@ -409,56 +410,33 @@ string GetFileExtension(
 
 // ~~
 
-bool MatchesFolderPathFilter(
-    string[] folder_part_array,
-    string[] filter_part_array,
-    size_t folder_part_index,
-    size_t filter_part_index
+string[] GetFolderPathPartArray(
+    string path
     )
 {
-    if ( filter_part_index >= filter_part_array.length )
-    {
-        return folder_part_index >= folder_part_array.length;
-    }
-    else if ( filter_part_array[ filter_part_index ] == "//" )
-    {
-        foreach ( next_folder_index; folder_part_index .. folder_part_array.length + 1 )
-        {
-            if ( MatchesFolderPathFilter(
-                     folder_part_array,
-                     filter_part_array,
-                     next_folder_index,
-                     filter_part_index + 1 ) )
-            {
-                return true;
-            }
-        }
+    string[]
+        part_array;
 
-        return false;
-    }
-    else if ( folder_part_index >= folder_part_array.length )
+    part_array = path.split( '/' );
+
+    if ( part_array.length > 0
+         && part_array[ 0 ] == "" )
     {
-        return false;
+        part_array = part_array[ 1 .. $ ];
     }
-    else if ( folder_part_array[ folder_part_index ].globMatch(
-                  filter_part_array[ filter_part_index ] ) )
+
+    if ( part_array.length > 0
+         && part_array[ $ - 1 ] == "" )
     {
-        return MatchesFolderPathFilter(
-            folder_part_array,
-            filter_part_array,
-            folder_part_index + 1,
-            filter_part_index + 1 );
+        part_array = part_array[ 0 .. $ - 1 ];
     }
-    else
-    {
-        return false;
-    }
+
+    return part_array;
 }
 
 // ~~
 
-bool MatchesFolderPathFilter(
-    string folder_path,
+string[] GetFolderPathFilterPartArray(
     string folder_path_filter
     )
 {
@@ -466,30 +444,18 @@ bool MatchesFolderPathFilter(
         character_index,
         next_character_index;
     string[]
-        folder_part_array,
         filter_part_array;
 
-    folder_part_array = folder_path.split( '/' );
-
-    if ( folder_part_array.length > 0
-         && folder_part_array[ 0 ] == "" )
+    if ( !folder_path_filter.startsWith( "//" ) )
     {
-        folder_part_array = folder_part_array[ 1 .. $ ];
-    }
-
-    if ( folder_part_array.length > 0
-         && folder_part_array[ $ - 1 ] == "" )
-    {
-        folder_part_array = folder_part_array[ 0 .. $ - 1 ];
-    }
-
-    if ( folder_path_filter.startsWith( '/' ) )
-    {
-        folder_path_filter = folder_path_filter[ 1 .. $ ];
-    }
-    else
-    {
-        folder_path_filter = "//" ~ folder_path_filter;
+        if ( folder_path_filter.startsWith( '/' ) )
+        {
+            folder_path_filter = folder_path_filter[ 1 .. $ ];
+        }
+        else
+        {
+            folder_path_filter = "//" ~ folder_path_filter;
+        }
     }
 
     character_index = 0;
@@ -516,7 +482,10 @@ bool MatchesFolderPathFilter(
             filter_part_array
                 ~= folder_path_filter[ character_index .. next_character_index ];
 
-            if ( next_character_index < folder_path_filter.length )
+            if ( next_character_index < folder_path_filter.length
+                 && !( next_character_index + 1 < folder_path_filter.length
+                       && folder_path_filter[ next_character_index ] == '/'
+                       && folder_path_filter[ next_character_index + 1 ] == '/' ) )
             {
                 ++next_character_index;
             }
@@ -531,7 +500,47 @@ bool MatchesFolderPathFilter(
         filter_part_array = filter_part_array[ 0 .. $ - 1 ];
     }
 
-    return MatchesFolderPathFilter( folder_part_array, filter_part_array, 0, 0 );
+    return filter_part_array;
+}
+
+// ~~
+
+bool MatchesFolderPathFilter(
+    string[] folder_part_array,
+    string[] filter_part_array,
+    size_t folder_part_index,
+    size_t filter_part_index
+    )
+{
+    if ( filter_part_index >= filter_part_array.length )
+    {
+        return folder_part_index >= folder_part_array.length;
+    }
+    else if ( filter_part_array[ filter_part_index ] == "//" )
+    {
+        foreach ( next_folder_part_index; folder_part_index .. folder_part_array.length + 1 )
+        {
+            if ( MatchesFolderPathFilter( folder_part_array, filter_part_array, next_folder_part_index, filter_part_index + 1 ) )
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+    else if ( folder_part_index >= folder_part_array.length )
+    {
+        return false;
+    }
+    else if ( folder_part_array[ folder_part_index ].globMatch(
+                  filter_part_array[ filter_part_index ] ) )
+    {
+        return MatchesFolderPathFilter( folder_part_array, filter_part_array, folder_part_index + 1, filter_part_index + 1 );
+    }
+    else
+    {
+        return false;
+    }
 }
 
 // ~~
@@ -555,7 +564,12 @@ bool MatchesFilePathFilter(
 
     if ( folder_path_filter != "" )
     {
-        if ( !MatchesFolderPathFilter( folder_path, folder_path_filter ) )
+        if ( !MatchesFolderPathFilter(
+                 folder_path.GetFolderPathPartArray(),
+                 folder_path_filter.GetFolderPathFilterPartArray(),
+                 0,
+                 0 
+                 ) )
         {
             return false;
         }
@@ -582,6 +596,49 @@ bool MatchesFilePathFilterArray(
     }
 
     return false;
+}
+
+// ~~
+
+void TestFilePathFilter(
+    )
+{
+    Tuple!( string, string, bool )[]
+        test_case_array;
+
+    test_case_array = 
+        [
+            tuple( "DESIGN/DESKTOP/contact_code.html", "*.*", true ),
+            tuple( "DESIGN/DESKTOP/contact_code.html", "//*.*", true ),
+            tuple( "DESIGN/DESKTOP/contact_code.html", "*/*/*_code.html", true ),
+            tuple( "DESIGN/DESKTOP/contact_code.html", "//*/*/*_code.html", true ),
+            tuple( "DESIGN/DESKTOP/contact_code.html", "/DESKTOP//*.*", false ),
+            tuple( "DESIGN/DESKTOP/contact_code.html", "DESKTOP//*.*", true ),
+            tuple( "DESIGN/DESKTOP/contact_code.html", "/DESIGN/*/*.*", true ),
+            tuple( "DESIGN/DESKTOP/contact_code.html", "/DESIGN//*.*", true ),
+            tuple( "DESIGN/DESKTOP/contact_code.html", "/DESIGN/DESKTOP/*.*|/DESIGN/MOBILE/*.*", true ),
+            tuple( "DESIGN/DESKTOP/contact_code.html", "DESIGN/*/*.*", true ),
+            tuple( "DESIGN/DESKTOP/contact_code.html", "DESIGN//*.*", true ),
+            tuple( "DESIGN/DESKTOP/contact_code.html", "DESIGN/DESKTOP/*.*|DESIGN/MOBILE/*.*", true ),
+            tuple( "DESIGN/DESKTOP/contact_screen.png", "*/*/*_code.html", false ),
+            tuple( "DESIGN/DESKTOP/contact_code.html", "/DESIGN/*/*.*", true ),
+            tuple( "DESIGN/DESKTOP/contact_code.html", "DESIGN/*/*.*", true ),
+            tuple( "DESIGN/DESKTOP/contact_code.html", "DESIGN/*/*/*.*", false ),
+            tuple( "A/B/DESIGN/DESKTOP/contact_code.html", "/DESIGN/*/*.*", false ),
+            tuple( "A/B/DESIGN/DESKTOP/contact_code.html", "DESIGN/*/*.*", true ),
+            tuple( "A/B/DESIGN/DESKTOP/contact_code.html", "DESIGN/*/*/*.*", false )
+        ];
+
+    foreach ( test_case; test_case_array )
+    {
+        if ( test_case[ 0 ].MatchesFilePathFilterArray( test_case[ 1 ].split( '|' ) )
+             != test_case[ 2 ] )
+        {
+            writeln( test_case[ 0 ], " ", test_case[ 1 ], " ", test_case[ 2 ], " ", !test_case[ 2 ] );
+
+            Abort( "Invalid file path filter test" );
+        }
+    }
 }
 
 // ~~
