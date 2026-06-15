@@ -32,7 +32,7 @@ unfold [options] <input folder path> <input file path filter> <output folder pat
 ## Examples
 
 ```bash
-unfold --copy --overwrite INPUT_FOLDER/ "DESKTOP//*.*|MOBILE//*.*" OUTPUT_FOLDER/ "{D1}{S|remove_suffix _code|remove_suffix _screen}_{D!|lower_case}{E}"
+unfold --copy --overwrite INPUT_FOLDER/ "DESKTOP/*.*|MOBILE/*.*" OUTPUT_FOLDER/ "{D1}{S|remove_suffix _code|remove_suffix _screen}_{D!|lower_case}{E}"
 ```
 
 ## Properties
